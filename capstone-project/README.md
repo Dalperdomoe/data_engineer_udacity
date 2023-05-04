@@ -18,26 +18,17 @@
 ## About
 
 ### Purpose
-The purpose of the project is to structure both Earth Surface Temperature and Storm Events
-data ([Sources Below](#data-sources)) in order to study these phenomena either on 
-their own or in relationship with the temperature data. The idea is to use
-[Apache Spark](https://spark.apache.org/) to create a pipeline to read the data from the
-source csvs (which should be stored on S3), clean and organize it, and  then store the 
-resulting data as parquet files on S3.
+
+The goal of this project is to analyze the Earth Surface Temperature and Storm Events data ([Sources Below](#data-sources)), either independently or in conjunction with each other, in order to gain insights into these phenomena. To achieve this goal, we will utilize Apache Spark to develop a pipeline that reads the data from the source CSV files (which will be stored on S3), cleans and organizes it, and then stores the processed data as Parquet files on S3.
+
+By structuring and processing the data using [Apache Spark](https://spark.apache.org/), we aim to efficiently handle large volumes of data and enhance the analysis process. The resulting Parquet files will be optimized for query performance and storage efficiency, enabling us to quickly and easily access the data for further analysis.
+
+Overall, this project aims to provide valuable insights into Earth Surface Temperature and Storm Events data by leveraging Apache Spark to structure, process, and store the data efficiently.
 
 ### Technologies
-Spark was chosen for this job because of its speed, versatility, and horizontal scalability. The
-most important aspect of this is that Spark runs on a cluster and can thus leverage the memory and
-compute capabilities of several machines to handle the large amounts of data involved in this project.
-It also has the benefit of allowing SQL-like syntax for querying data, which can make performing
-analytics much easier. Yet another benefit of this approach is that if the data storage were to be
-changed and instead the data would be loaded to HDFS on the cluster, for example, the same pipeline
-code could still be used with only minimal changes.
+We chose Spark for its speed, versatility, and horizontal scalability. It runs on a cluster, utilizing multiple machines' memory and compute capabilities to handle large amounts of data. Its SQL-like syntax makes analytics easier, and the same pipeline code could be used if data storage changed.
 
-S3 was chosen for storing the data because it is less expensive for storing data at rest and
-requires less administration overhead than storing the data on HDFS or in a database (SQL or
-NoSQL). S3 also has good scalability and availability properties that make it a good choice
-for data storage.
+For data storage, we chose S3 due to its cost-effectiveness and low administration overhead compared to HDFS or databases. S3 also has good scalability and availability properties, making it an optimal choice.
 
 ### Data Sources
 
@@ -47,21 +38,10 @@ for data storage.
 ## Data Processing
 
 ### Output Data Model
-The data is to be organized in a small snowflake-type schema (in a Data Lake in S3) with two fact and two dimension 
-tables. Each table will be stored as a Parquet dataset in S3. Parquet was chosen because of its scalability and 
-ability to partition the dataset as well as its columnar storage which allows one to efficiently access only the fields 
-one wants to use. This also reduces the administrative overhead and possible scalability problems one could face when
-placing the data in a relational database or in a traditional data warehouse.
-Now, the tables in which the output data is stored are as follows: given that there are two main objects to study, 
-namely storms and temperatures, there will be two facts tables in the output: `storms` and `temperatures`. Additionally,
-there will be two dimensions along which to analyze these facts: `location` and `time`. 
 
-This data structure allows the study of
-both facts by location and time independently as well as studying the facts together by joining them by location
-and time. This is due to the fact that the most common aggregations I expect to perform on the data are by time (either
-year of month) or location. With this one can perform analysis based on time, such as studying trends in temperatures and 
-storm severity, as well as analysis based on location, like seeing which kinds of storms occur in different areas, 
-for example.
+Data will be organized in a small snowflake-type schema in S3 with two fact and two dimension tables stored as a Parquet dataset. Parquet's scalability, partitioning, and columnar storage reduce administrative overhead and scalability issues.
+
+Output data is stored in two facts tables, `storms` and `temperatures`, and two dimension tables, `location` and `time`. This structure allows independent analysis of facts by location and time, and joint analysis by joining them. The most common aggregations are by time or location, allowing analysis of trends in temperatures and storm severity, and types of storms in different areas.
 
 ### Dictionary
 The `storms` table will contain the following facts about the storm events:
@@ -105,53 +85,47 @@ The `time` table has the following fields:
 - `year_month`: Year and month of the date in `yyyy-MM` format.
 
 ### Pipeline Structure
-The pipeline is implemented in pyspark and has the following basic steps:
-- Read the raw temperature and storm data from S3.
-- Create the facts and dimensions tables.
-- Perform some quality checks.
-- Write results to S3.
+The pyspark pipeline has four basic steps:
 
-The quality checks performed are the following:
-- Verify that the location ids were created correctly by joining the storms and locations tables.
-- Verify that all the dates are present by joining the storms and dates tables.
+1. Read raw temperature and storm data from S3.
+2. Create facts and dimensions tables.
+3. Perform quality checks:
+    - Verify correct location ids by joining storms and locations tables.
+    - Verify all dates are present by joining storms and dates tables.
+4. Write results to S3.
 
 ## Running the Pipeline
-To run the pipeline you must first upload the raw files to the S3 bucket you will be using. This
-can be done by first downloading the `GlobalTemperaturesByState.csv` from the Kaggle link and running
-the `download_noaa_files.py` script to get the storm data files, and then uploading the resulting files
-to the bucket. Next, fill a `.env` file with the following variables:
+
+To run the pipeline, first upload the raw files to the S3 bucket and fill a `.env` file with the following variables:
+
 ```dotenv
 BUCKET_NAME=
 STORM_DATA_PATH=
 OUTPUT_PATH=
 TEMP_DATA_FILE=
 ```
-`STORM_DATA_PATH` denotes the prefix in the bucket that contains the noaa files, `TEMP_DATA_FILE` is the path
-to `GlobalTemperaturesByState.csv` in the bucket, and `OUTPUT_PATH` is the prefix where the processed files
-will be stored in the bucket. If you want to run the job on a cluster, run the `prepare_submit_command.py` script
-to prepare the spark-submit command to include the necessary environment variables. Then you can run the pipeline
-by using the `spark_process.py` script.
+
+`STORM_DATA_PATH` denotes the prefix containing the noaa files in the bucket, `TEMP_DATA_FILE` is the path
+to `GlobalTemperaturesByState.csv`, and `OUTPUT_PATH` is the prefix where processed files will be stored.
+
+To run on a cluster, use the `prepare_submit_command.py` script to prepare the spark-submit command with necessary 
+environment variables. Then run the pipeline using the `spark_process.py` script.
 
 ## Future Challenges
 
 ### Scaling Data Volume
-When it comes to data scaling (by 100x, for example), the current solution should work well and 
-would in principle require no more than an outward scaling of the Spark Cluster to handle the 
-additional processing workload. When it comes to storage, S3 remains a good option as it is highly 
-scalable.
+For data scaling (e.g. by 100x), the current solution should work well by scaling out the Spark Cluster. 
+As for storage, S3 is a highly scalable option.
 
 ### Running Periodically
-If the pipeline had to run periodically, for instance if it had to run daily at 7 a.m., then it would
-be ideal to set it up as an [Airflow](https://airflow.apache.org/) DAG, as this would allow the 
-scheduling and execution of the job as well as give traceability and insights into the execution
-itself. Here the work would still be performed by a Spark cluster and not by the Airflow workers 
-themselves, since these have limited capabilities on their own. This could be achieved via Airflow
-Spark or Spark Submit operators. One could even set the DAG to spin up an AWS 
-[EMR](https://aws.amazon.com/emr/) cluster for the job and then shut it down once the task is completed!
+
+To schedule the pipeline to run periodically, it is recommended to use [Airflow](https://airflow.apache.org/), a platform that allows 
+for the scheduling and execution of jobs with traceability and insights into the execution. The job would still be performed by a Spark
+cluster and not by Airflow workers, as these have limited capabilities. Airflow Spark or Spark Submit operators can be used to achieve 
+this. It's even possible to set up the DAG to spin up an [AWS EMR](https://aws.amazon.com/emr/) cluster for the job and then shut it down
+ once the task is completed.
 
 ### Access for Multiple Users
-When it comes to access for many users, S3 can handle reads well, but perhaps the Spark cluster will have
-to be scaled. Another option would be to precompute the most common aggregates to be performed and store
-the results in a database with good support for concurrence such as Cassandra.
+For high user access scenarios, S3 can handle read requests effectively, but the Spark cluster may require scaling. Alternatively, to enhance concurrency and performance, precomputing the most commonly performed aggregations and storing the results in a database optimized for concurrent access such as Cassandra could be considered.
 
 [Back to top.](#capstone-project)
